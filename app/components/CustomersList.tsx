@@ -65,7 +65,8 @@ export function CustomersList() {
       setApiHealthy(healthy);
       if (!healthy) {
         setError(
-          "Cannot connect to API. Make sure the backend is running on http://localhost:5000",
+          "Cannot connect to API. Make sure the backend is running on " +
+            `${import.meta.env.VITE_API_URL}`,
         );
         setLoading(false);
         return;
@@ -223,7 +224,7 @@ export function CustomersList() {
             <p className="text-gray-500">
               Please ensure the backend API is running at{" "}
               <code className="rounded bg-gray-100 px-2 py-1">
-                http://127.0.0.1:5000
+                {import.meta.env.VITE_API_URL}
               </code>
             </p>
             <button
