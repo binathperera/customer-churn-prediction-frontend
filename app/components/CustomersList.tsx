@@ -3,6 +3,8 @@ import {
   fetchAllCustomers,
   predictCustomer,
   createCustomer,
+  updateCustomer,
+  deleteCustomer,
   type Customer,
   type Prediction,
   checkAPIHealth,
@@ -37,7 +39,6 @@ export function CustomersList() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [apiHealthy, setApiHealthy] = useState(false);
-  const [predictingIds, setPredictingIds] = useState<Set<string>>(new Set());
 
   // Filter States
   const [filters, setFilters] = useState({
@@ -58,6 +59,14 @@ export function CustomersList() {
   const [isPredictingNew, setIsPredictingNew] = useState(false);
   const [isSavingNew, setIsSavingNew] = useState(false);
   const [addModalError, setAddModalError] = useState<string | null>(null);
+
+  // View/Edit/Delete Modal States
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<Partial<CustomerWithPrediction> | null>(null);
+  const [viewModalError, setViewModalError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -95,7 +104,21 @@ export function CustomersList() {
       if (!filters.includeExited) apiParams.Exited = 0;
 
       const data = await fetchAllCustomers(apiParams);
-      setCustomers(data.customers || []);
+      const fetchedCustomers = data.customers || [];
+
+      // Resolve pipeline predictions instantly upon records arrival
+      const customersWithPredictions = await Promise.all(
+        fetchedCustomers.map(async (customer) => {
+          try {
+            const prediction = await predictCustomer(customer);
+            return { ...customer, prediction };
+          } catch (err) {
+            return { ...customer, error: "Prediction missing" };
+          }
+        }),
+      );
+
+      setCustomers(customersWithPredictions);
       setTotalRecords(data.total_filtered_records || 0);
       setCurrentPage(page);
     } catch (err) {
@@ -121,39 +144,6 @@ export function CustomersList() {
     loadCustomers(1);
   };
 
-  const predictChurn = async (customer: Customer) => {
-    const idToTrack = customer.CustomerId || customer.id || "";
-    try {
-      setPredictingIds((prev) => new Set(prev).add(idToTrack));
-      const prediction = await predictCustomer(customer);
-
-      setCustomers((prev) =>
-        prev.map((c) =>
-          (c.CustomerId || c.id) === idToTrack
-            ? { ...c, prediction, error: undefined }
-            : c,
-        ),
-      );
-    } catch (err) {
-      setCustomers((prev) =>
-        prev.map((c) =>
-          (c.CustomerId || c.id) === idToTrack
-            ? {
-                ...c,
-                error: err instanceof Error ? err.message : "Prediction failed",
-              }
-            : c,
-        ),
-      );
-    } finally {
-      setPredictingIds((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(idToTrack);
-        return newSet;
-      });
-    }
-  };
-
   // --- Add Customer Modal Handlers ---
   const handleNewCustomerChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -168,7 +158,6 @@ export function CustomersList() {
     }
 
     setNewCustomer((prev) => ({ ...prev, [name]: parsedValue }));
-    // Reset prediction if user alters data after a prediction was made
     setNewCustomerPrediction(null);
   };
 
@@ -195,7 +184,6 @@ export function CustomersList() {
       setIsAddModalOpen(false);
       setNewCustomer({ ...defaultNewCustomer });
       setNewCustomerPrediction(null);
-      // Reload list to show the newly added customer
       loadCustomers(1);
     } catch (err) {
       setAddModalError(
@@ -205,6 +193,78 @@ export function CustomersList() {
       );
     } finally {
       setIsSavingNew(false);
+    }
+  };
+
+  // --- View / Edit / Delete Customer Handlers ---
+  const handleOpenViewModal = (customer: CustomerWithPrediction) => {
+    setSelectedCustomer({ ...customer });
+    setViewModalError(null);
+    setIsViewModalOpen(true);
+  };
+
+  const handleSelectedCustomerChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    const { name, value, type } = e.target;
+    let parsedValue: string | number = value;
+
+    if (type === "number") {
+      parsedValue = value === "" ? "" : Number(value);
+    } else if (type === "checkbox") {
+      parsedValue = (e.target as HTMLInputElement).checked ? 1 : 0;
+    }
+
+    setSelectedCustomer((prev) =>
+      prev ? { ...prev, [name]: parsedValue } : null,
+    );
+  };
+
+  const handleUpdateCustomer = async () => {
+    if (!selectedCustomer) return;
+    const targetId = selectedCustomer.id || selectedCustomer.CustomerId;
+    if (!targetId) return;
+
+    try {
+      setIsSavingEdit(true);
+      setViewModalError(null);
+      await updateCustomer(targetId, selectedCustomer);
+      setIsViewModalOpen(false);
+      loadCustomers(currentPage);
+    } catch (err) {
+      setViewModalError(
+        err instanceof Error ? err.message : "Failed to update record",
+      );
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!selectedCustomer) return;
+    const targetId = selectedCustomer.id || selectedCustomer.CustomerId;
+    if (!targetId) return;
+
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this customer record permanently?",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      setViewModalError(null);
+      await deleteCustomer(targetId);
+      setIsViewModalOpen(false);
+      loadCustomers(currentPage);
+    } catch (err) {
+      setViewModalError(
+        err instanceof Error ? err.message : "Failed to remove record",
+      );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -415,7 +475,6 @@ export function CustomersList() {
                 </div>
               </div>
 
-              {/* Prediction Results Area inside Modal */}
               {newCustomerPrediction && (
                 <div
                   className={`mt-6 p-4 rounded-lg border ${newCustomerPrediction.churn === 1 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}
@@ -438,24 +497,6 @@ export function CustomersList() {
                         ).toFixed(1)}
                         %
                       </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600 mb-1">
-                        Model Confidence
-                      </p>
-                      <div className="flex items-center justify-end">
-                        <div className="relative w-24 h-2 bg-gray-200 rounded-full overflow-hidden mr-2">
-                          <div
-                            className={`h-full ${newCustomerPrediction.confidence > 70 ? "bg-green-500" : newCustomerPrediction.confidence > 50 ? "bg-yellow-500" : "bg-orange-500"}`}
-                            style={{
-                              width: `${newCustomerPrediction.confidence}%`,
-                            }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-medium text-gray-900">
-                          {newCustomerPrediction.confidence.toFixed(1)}%
-                        </span>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -489,7 +530,229 @@ export function CustomersList() {
           </div>
         </div>
       )}
-      {/* END MODAL */}
+
+      {/* VIEW / EDIT / DELETE MODAL */}
+      {isViewModalOpen && selectedCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 overflow-y-auto">
+          <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl mt-10 mb-10">
+            <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-800">
+                Customer Details & Settings
+              </h2>
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6">
+              {viewModalError && (
+                <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+                  {viewModalError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Surname
+                  </label>
+                  <input
+                    type="text"
+                    name="Surname"
+                    value={selectedCustomer.Surname || ""}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Geography
+                  </label>
+                  <select
+                    name="Geography"
+                    value={selectedCustomer.Geography || "France"}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="France">France</option>
+                    <option value="Germany">Germany</option>
+                    <option value="Spain">Spain</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gender
+                  </label>
+                  <select
+                    name="Gender"
+                    value={selectedCustomer.Gender || "Male"}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Age
+                  </label>
+                  <input
+                    type="number"
+                    name="Age"
+                    value={selectedCustomer.Age || ""}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Credit Score
+                  </label>
+                  <input
+                    type="number"
+                    name="CreditScore"
+                    value={selectedCustomer.CreditScore || ""}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tenure (Years)
+                  </label>
+                  <input
+                    type="number"
+                    name="Tenure"
+                    value={selectedCustomer.Tenure ?? ""}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Balance ($)
+                  </label>
+                  <input
+                    type="number"
+                    name="Balance"
+                    value={selectedCustomer.Balance ?? ""}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Estimated Salary ($)
+                  </label>
+                  <input
+                    type="number"
+                    name="EstimatedSalary"
+                    value={selectedCustomer.EstimatedSalary ?? ""}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Number of Products
+                  </label>
+                  <input
+                    type="number"
+                    name="NumOfProducts"
+                    value={selectedCustomer.NumOfProducts ?? ""}
+                    onChange={handleSelectedCustomerChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="flex flex-col space-y-3 justify-center mt-6">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      name="HasCrCard"
+                      id="editHasCrCard"
+                      checked={selectedCustomer.HasCrCard === 1}
+                      onChange={handleSelectedCustomerChange}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label
+                      htmlFor="editHasCrCard"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Has Credit Card
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      name="IsActiveMember"
+                      id="editIsActiveMember"
+                      checked={selectedCustomer.IsActiveMember === 1}
+                      onChange={handleSelectedCustomerChange}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label
+                      htmlFor="editIsActiveMember"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Is Active Member
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {selectedCustomer.prediction && (
+                <div
+                  className={`mt-6 p-4 rounded-lg border ${selectedCustomer.prediction.churn === 1 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}
+                >
+                  <h3 className="font-semibold text-gray-800 mb-1">
+                    Current Loaded Churn Prediction:
+                  </h3>
+                  <p
+                    className={`text-base font-bold ${selectedCustomer.prediction.churn === 1 ? "text-red-700" : "text-green-700"}`}
+                  >
+                    {selectedCustomer.prediction.churn === 1 ? "⚠️ " : "✓ "}
+                    {selectedCustomer.prediction.status} (
+                    {(
+                      selectedCustomer.prediction.churn_probability * 100
+                    ).toFixed(1)}
+                    %)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 rounded-b-xl flex justify-between items-center">
+              <button
+                onClick={handleDeleteCustomer}
+                disabled={isDeleting}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition disabled:opacity-50"
+              >
+                {isDeleting ? "Deleting..." : "Delete Customer"}
+              </button>
+              <div className="space-x-3">
+                <button
+                  onClick={() => setIsViewModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateCustomer}
+                  disabled={isSavingEdit}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition disabled:opacity-50"
+                >
+                  {isSavingEdit ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="border-b border-indigo-200 bg-white shadow-sm">
@@ -623,10 +886,12 @@ export function CustomersList() {
           </form>
         </div>
 
-        {loading && customers.length === 0 ? (
+        {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"></div>
-            <p className="text-xl text-gray-600">Loading customers...</p>
+            <p className="text-xl text-gray-600">
+              Loading customers and predictions...
+            </p>
           </div>
         ) : error && customers.length === 0 ? (
           <div className="rounded-lg bg-white p-8 text-center shadow-lg">
@@ -663,10 +928,7 @@ export function CustomersList() {
                         Account
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                        Churn Probability
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                        Decision Confidence
+                        Churn Prediction
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
                         Action
@@ -724,16 +986,9 @@ export function CustomersList() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            {customer.loading || predictingIds.has(idKey) ? (
-                              <div className="flex items-center space-x-2">
-                                <div className="h-2 w-2 animate-pulse rounded-full bg-yellow-500"></div>
-                                <span className="text-sm text-gray-600">
-                                  Predicting...
-                                </span>
-                              </div>
-                            ) : customer.error ? (
-                              <span className="text-sm text-red-600">
-                                Error
+                            {customer.error ? (
+                              <span className="text-sm text-red-500">
+                                {customer.error}
                               </span>
                             ) : customer.prediction ? (
                               <div
@@ -761,44 +1016,25 @@ export function CustomersList() {
                                       customer.prediction.churn_probability *
                                       100
                                     ).toFixed(1)}
-                                    %
+                                    % Churn Prob.
                                   </p>
                                 </div>
                               </div>
                             ) : (
-                              <span className="text-sm text-gray-500">-</span>
+                              <div className="flex items-center space-x-2">
+                                <div className="h-2 w-2 animate-pulse rounded-full bg-indigo-500"></div>
+                                <span className="text-sm text-gray-400">
+                                  Loading...
+                                </span>
+                              </div>
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            {customer.prediction ? (
-                              <div className="flex items-center">
-                                <div className="relative w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full transition-all duration-300 ${
-                                      customer.prediction.confidence > 70
-                                        ? "bg-green-500"
-                                        : customer.prediction.confidence > 50
-                                          ? "bg-yellow-500"
-                                          : "bg-orange-500"
-                                    }`}
-                                    style={{
-                                      width: `${customer.prediction.confidence}%`,
-                                    }}
-                                  ></div>
-                                </div>
-                                <span className="ml-2 text-sm font-medium text-gray-900">
-                                  {customer.prediction.confidence.toFixed(1)}%
-                                </span>
-                              </div>
-                            ) : null}
-                          </td>
-                          <td className="px-6 py-4">
                             <button
-                              onClick={() => predictChurn(customer)}
-                              disabled={predictingIds.has(idKey)}
-                              className="inline-flex items-center space-x-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition disabled:bg-gray-400"
+                              onClick={() => handleOpenViewModal(customer)}
+                              className="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition"
                             >
-                              <span>Predict</span>
+                              View
                             </button>
                           </td>
                         </tr>

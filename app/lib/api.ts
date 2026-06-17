@@ -129,6 +129,56 @@ export async function createCustomer(
   }
 }
 
+// Update an existing customer
+export async function updateCustomer(
+  id: string,
+  customerData: Partial<Customer>,
+): Promise<Customer> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/data/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(customerData),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(
+        errData.error || `Failed to update customer: ${response.status}`,
+      );
+    }
+
+    const data = await response.json();
+    return data.customer;
+  } catch (error) {
+    console.error("Error updating customer:", error);
+    throw error;
+  }
+}
+
+// Delete a customer
+export async function deleteCustomer(id: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/data/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(
+        errData.error || `Failed to delete customer: ${response.status}`,
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error deleting customer:", error);
+    throw error;
+  }
+}
+
 // Get statistics
 export async function fetchStatistics() {
   try {
