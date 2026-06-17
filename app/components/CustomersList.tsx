@@ -32,6 +32,44 @@ const defaultNewCustomer: Partial<Customer> = {
   Gender: "Male",
 };
 
+// Risk Classification Helper
+const getRiskDetails = (probability: number) => {
+  if (probability >= 0.6) {
+    return {
+      label: "High Risk",
+      bg: "bg-red-50",
+      border: "border-red-200",
+      text: "text-red-700",
+      lightBg: "bg-red-100",
+      iconColor: "text-red-600",
+      icon: "⚠️",
+      action: "Call immediately",
+    };
+  } else if (probability >= 0.2) {
+    return {
+      label: "Medium Risk",
+      bg: "bg-yellow-50",
+      border: "border-yellow-200",
+      text: "text-yellow-800",
+      lightBg: "bg-yellow-100",
+      iconColor: "text-yellow-600",
+      icon: "🔔",
+      action: "Send loyalty email",
+    };
+  } else {
+    return {
+      label: "Low Risk",
+      bg: "bg-green-50",
+      border: "border-green-200",
+      text: "text-green-700",
+      lightBg: "bg-green-100",
+      iconColor: "text-green-600",
+      icon: "✓",
+      action: "No action needed",
+    };
+  }
+};
+
 export function CustomersList() {
   const [customers, setCustomers] = useState<CustomerWithPrediction[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -106,7 +144,6 @@ export function CustomersList() {
       const data = await fetchAllCustomers(apiParams);
       const fetchedCustomers = data.customers || [];
 
-      // Resolve pipeline predictions instantly upon records arrival
       const customersWithPredictions = await Promise.all(
         fetchedCustomers.map(async (customer) => {
           try {
@@ -303,9 +340,9 @@ export function CustomersList() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* ADD CUSTOMER MODAL */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 overflow-y-auto">
-          <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl mt-10 mb-10">
-            <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[95vh]">
+            <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-xl shrink-0">
               <h2 className="text-xl font-bold text-gray-800">
                 Add New Customer
               </h2>
@@ -317,7 +354,7 @@ export function CustomersList() {
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
               {addModalError && (
                 <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
                   {addModalError}
@@ -325,6 +362,7 @@ export function CustomersList() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* ... Add Customer Inputs ... */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Surname
@@ -475,35 +513,52 @@ export function CustomersList() {
                 </div>
               </div>
 
-              {newCustomerPrediction && (
-                <div
-                  className={`mt-6 p-4 rounded-lg border ${newCustomerPrediction.churn === 1 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}
-                >
-                  <h3 className="font-semibold text-gray-800 mb-2">
-                    Prediction Results:
-                  </h3>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p
-                        className={`text-lg font-bold ${newCustomerPrediction.churn === 1 ? "text-red-700" : "text-green-700"}`}
-                      >
-                        {newCustomerPrediction.churn === 1 ? "⚠️ " : "✓ "}
-                        {newCustomerPrediction.status}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Churn Probability:{" "}
-                        {(
-                          newCustomerPrediction.churn_probability * 100
-                        ).toFixed(1)}
-                        %
-                      </p>
+              {newCustomerPrediction &&
+                (() => {
+                  const risk = getRiskDetails(
+                    newCustomerPrediction.churn_probability,
+                  );
+                  return (
+                    <div
+                      className={`mt-6 p-4 rounded-lg border ${risk.bg} ${risk.border}`}
+                    >
+                      <h3 className="font-semibold text-gray-800 mb-2">
+                        Prediction Results:
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className={`text-base font-bold ${risk.text}`}>
+                            {risk.icon} {risk.label} (
+                            {(
+                              newCustomerPrediction.churn_probability * 100
+                            ).toFixed(1)}
+                            %)
+                          </p>
+                          <p className="text-sm text-gray-700 mt-1">
+                            <strong>Confidence:</strong>{" "}
+                            {(newCustomerPrediction.confidence * 100).toFixed(
+                              1,
+                            )}
+                            %
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-700 font-semibold mb-1">
+                            Recommended Action:
+                          </p>
+                          <p
+                            className={`text-sm px-3 py-1 inline-block rounded-full font-medium ${risk.lightBg} ${risk.text}`}
+                          >
+                            Action: {risk.action}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
+                  );
+                })()}
             </div>
 
-            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 rounded-b-xl flex justify-between items-center">
+            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 rounded-b-xl flex justify-between items-center shrink-0">
               <button
                 onClick={() => setIsAddModalOpen(false)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition"
@@ -533,11 +588,11 @@ export function CustomersList() {
 
       {/* VIEW / EDIT / DELETE MODAL */}
       {isViewModalOpen && selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 overflow-y-auto">
-          <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl mt-10 mb-10">
-            <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-xl">
-              <h2 className="text-xl font-bold text-gray-800">
-                Customer Details & Settings
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[95vh]">
+            <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-xl shrink-0">
+              <h2 className="text-xl font-bold text-gray-800 truncate pr-4">
+                Customer Details: {selectedCustomer.Surname}
               </h2>
               <button
                 onClick={() => setIsViewModalOpen(false)}
@@ -547,7 +602,7 @@ export function CustomersList() {
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
               {viewModalError && (
                 <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
                   {viewModalError}
@@ -705,28 +760,53 @@ export function CustomersList() {
                 </div>
               </div>
 
-              {selectedCustomer.prediction && (
-                <div
-                  className={`mt-6 p-4 rounded-lg border ${selectedCustomer.prediction.churn === 1 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}
-                >
-                  <h3 className="font-semibold text-gray-800 mb-1">
-                    Current Loaded Churn Prediction:
-                  </h3>
-                  <p
-                    className={`text-base font-bold ${selectedCustomer.prediction.churn === 1 ? "text-red-700" : "text-green-700"}`}
-                  >
-                    {selectedCustomer.prediction.churn === 1 ? "⚠️ " : "✓ "}
-                    {selectedCustomer.prediction.status} (
-                    {(
-                      selectedCustomer.prediction.churn_probability * 100
-                    ).toFixed(1)}
-                    %)
-                  </p>
-                </div>
-              )}
+              {selectedCustomer.prediction &&
+                (() => {
+                  const risk = getRiskDetails(
+                    selectedCustomer.prediction.churn_probability,
+                  );
+                  return (
+                    <div
+                      className={`mt-6 p-4 rounded-lg border ${risk.bg} ${risk.border}`}
+                    >
+                      <h3 className="font-semibold text-gray-800 mb-2">
+                        Current Loaded Churn Prediction:
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className={`text-base font-bold ${risk.text}`}>
+                            {risk.icon} {risk.label} (
+                            {(
+                              selectedCustomer.prediction.churn_probability *
+                              100
+                            ).toFixed(1)}
+                            %)
+                          </p>
+                          <p className="text-sm text-gray-700 mt-1">
+                            <strong>Confidence:</strong>{" "}
+                            {(
+                              selectedCustomer.prediction.confidence * 100
+                            ).toFixed(1)}
+                            %
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-700 font-semibold mb-1">
+                            Recommended Action:
+                          </p>
+                          <p
+                            className={`text-sm px-3 py-1 inline-block rounded-full font-medium ${risk.lightBg} ${risk.text}`}
+                          >
+                            Action: {risk.action}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
             </div>
 
-            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 rounded-b-xl flex justify-between items-center">
+            <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 rounded-b-xl flex justify-between items-center shrink-0">
               <button
                 onClick={handleDeleteCustomer}
                 disabled={isDeleting}
@@ -939,6 +1019,14 @@ export function CustomersList() {
                     {customers.map((customer, idx) => {
                       const idKey =
                         customer.CustomerId || customer.id || idx.toString();
+
+                      let risk = null;
+                      if (customer.prediction) {
+                        risk = getRiskDetails(
+                          customer.prediction.churn_probability,
+                        );
+                      }
+
                       return (
                         <tr
                           key={idKey}
@@ -990,33 +1078,25 @@ export function CustomersList() {
                               <span className="text-sm text-red-500">
                                 {customer.error}
                               </span>
-                            ) : customer.prediction ? (
+                            ) : customer.prediction && risk ? (
                               <div
-                                className={`flex items-center space-x-2 rounded-lg px-3 py-2 ${
-                                  customer.prediction.churn === 1
-                                    ? "bg-red-100"
-                                    : "bg-green-100"
-                                }`}
+                                className={`flex items-center space-x-2 rounded-lg px-3 py-2 ${risk.lightBg}`}
                               >
-                                <span
-                                  className={`text-lg ${customer.prediction.churn === 1 ? "text-red-600" : "text-green-600"}`}
-                                >
-                                  {customer.prediction.churn === 1 ? "⚠️" : "✓"}
+                                <span className={`text-lg ${risk.iconColor}`}>
+                                  {risk.icon}
                                 </span>
                                 <div>
                                   <p
-                                    className={`text-sm font-semibold ${customer.prediction.churn === 1 ? "text-red-700" : "text-green-700"}`}
+                                    className={`text-sm font-semibold ${risk.text}`}
                                   >
-                                    {customer.prediction.status}
+                                    {risk.label}
                                   </p>
-                                  <p
-                                    className={`text-xs ${customer.prediction.churn === 1 ? "text-red-600" : "text-green-600"}`}
-                                  >
+                                  <p className={`text-xs ${risk.iconColor}`}>
                                     {(
                                       customer.prediction.churn_probability *
                                       100
                                     ).toFixed(1)}
-                                    % Churn Prob.
+                                    % Prob.
                                   </p>
                                 </div>
                               </div>
