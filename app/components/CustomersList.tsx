@@ -835,7 +835,7 @@ export function CustomersList() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-                Customer Dashboard
+                Bank Customer Management
               </h1>
               <p className="mt-2 text-lg text-gray-600">
                 Data Management and Churn Prediction Analysis
