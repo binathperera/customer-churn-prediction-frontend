@@ -39,6 +39,7 @@ export interface FetchCustomersParams {
   Age?: string;
   Tenure?: string;
   Gender?: string;
+  Geography?: string;
   Exited?: number;
 }
 

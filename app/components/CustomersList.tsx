@@ -85,6 +85,7 @@ export function CustomersList() {
     Age: "",
     Tenure: "",
     Gender: "",
+    Geography: "",
     includeExited: false,
   });
 
@@ -138,6 +139,7 @@ export function CustomersList() {
       if (filters.Age) apiParams.Age = filters.Age;
       if (filters.Tenure) apiParams.Tenure = filters.Tenure;
       if (filters.Gender) apiParams.Gender = filters.Gender;
+      if (filters.Geography) apiParams.Geography = filters.Geography;
 
       if (!filters.includeExited) apiParams.Exited = 0;
 
@@ -833,10 +835,10 @@ export function CustomersList() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-                Bank Customer Management
+                Customer Dashboard
               </h1>
               <p className="mt-2 text-lg text-gray-600">
-                Analyze customer churn predictions
+                Data Management and Churn Prediction Analysis
               </p>
             </div>
             <div className="flex items-center space-x-6">
@@ -863,7 +865,7 @@ export function CustomersList() {
         {/* Filter Section */}
         <div className="mb-8 rounded-lg bg-white p-6 shadow-sm border border-indigo-100">
           <form onSubmit={handleSearch}>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6 items-end">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4 items-end">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Customer ID
@@ -931,6 +933,22 @@ export function CustomersList() {
                   <option value="Female">Female</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Country
+                </label>
+                <select
+                  name="Geography"
+                  value={filters.Geography}
+                  onChange={handleFilterChange}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="">All</option>
+                  <option value="France">France</option>
+                  <option value="Germany">Germany</option>
+                  <option value="Spain">Spain</option>
+                </select>
+              </div>
               <div className="flex items-center space-x-2 py-2">
                 <input
                   type="checkbox"
@@ -947,14 +965,14 @@ export function CustomersList() {
                   Include Exited
                 </label>
               </div>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                type="submit"
-                className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition"
-              >
-                Search
-              </button>
+              <div className="flex justify-end lg:col-span-1">
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition"
+                >
+                  Search
+                </button>
+              </div>
             </div>
           </form>
         </div>
