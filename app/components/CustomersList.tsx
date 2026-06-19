@@ -340,7 +340,7 @@ export function CustomersList() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* ADD CUSTOMER MODAL */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-50/80 via-indigo-50/80 to-purple-50/80 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[95vh]">
             <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-xl shrink-0">
               <h2 className="text-xl font-bold text-gray-800">
@@ -362,7 +362,6 @@ export function CustomersList() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* ... Add Customer Inputs ... */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Surname
@@ -536,10 +535,7 @@ export function CustomersList() {
                           </p>
                           <p className="text-sm text-gray-700 mt-1">
                             <strong>Confidence:</strong>{" "}
-                            {(newCustomerPrediction.confidence * 100).toFixed(
-                              1,
-                            )}
-                            %
+                            {newCustomerPrediction.confidence.toFixed(1)}%
                           </p>
                         </div>
                         <div>
@@ -588,7 +584,7 @@ export function CustomersList() {
 
       {/* VIEW / EDIT / DELETE MODAL */}
       {isViewModalOpen && selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-50/80 via-indigo-50/80 to-purple-50/80 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[95vh]">
             <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center bg-gray-50 rounded-t-xl shrink-0">
               <h2 className="text-xl font-bold text-gray-800 truncate pr-4">
@@ -784,10 +780,7 @@ export function CustomersList() {
                           </p>
                           <p className="text-sm text-gray-700 mt-1">
                             <strong>Confidence:</strong>{" "}
-                            {(
-                              selectedCustomer.prediction.confidence * 100
-                            ).toFixed(1)}
-                            %
+                            {selectedCustomer.prediction.confidence.toFixed(1)}%
                           </p>
                         </div>
                         <div>
@@ -840,7 +833,7 @@ export function CustomersList() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
-                Customer Dashboard
+                Bank Customer Management
               </h1>
               <p className="mt-2 text-lg text-gray-600">
                 Analyze customer churn predictions
